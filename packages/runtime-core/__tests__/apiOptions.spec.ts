@@ -10,7 +10,6 @@ import {
   ref,
   defineComponent
 } from '@vue/runtime-test'
-import { mockWarn } from '@vue/shared'
 
 describe('api: options', () => {
   test('data', async () => {
@@ -113,6 +112,7 @@ describe('api: options', () => {
     const spyA = jest.fn(returnThis)
     const spyB = jest.fn(returnThis)
     const spyC = jest.fn(returnThis)
+    const spyD = jest.fn(returnThis)
 
     let ctx: any
     const Comp = {
@@ -122,7 +122,8 @@ describe('api: options', () => {
           bar: 2,
           baz: {
             qux: 3
-          }
+          },
+          qux: 4
         }
       },
       watch: {
@@ -133,10 +134,14 @@ describe('api: options', () => {
         baz: {
           handler: spyC,
           deep: true
+        },
+        qux: {
+          handler: 'onQuxChange'
         }
       },
       methods: {
-        onFooChange: spyA
+        onFooChange: spyA,
+        onQuxChange: spyD
       },
       render() {
         ctx = this
@@ -165,6 +170,11 @@ describe('api: options', () => {
     expect(spyC).toHaveBeenCalledTimes(1)
     // new and old objects have same identity
     assertCall(spyC, 0, [{ qux: 4 }, { qux: 4 }])
+
+    ctx.qux++
+    await nextTick()
+    expect(spyD).toHaveBeenCalledTimes(1)
+    assertCall(spyD, 0, [5, 4])
   })
 
   test('watch array', async () => {
@@ -443,6 +453,11 @@ describe('api: options', () => {
       }
     }
     const mixinB = {
+      props: {
+        bP: {
+          type: String
+        }
+      },
       data() {
         return {
           b: 2
@@ -452,42 +467,78 @@ describe('api: options', () => {
         calls.push('mixinB created')
         expect(this.a).toBe(1)
         expect(this.b).toBe(2)
+        expect(this.bP).toBeUndefined()
         expect(this.c).toBe(3)
+        expect(this.cP1).toBeUndefined()
       },
       mounted() {
         calls.push('mixinB mounted')
       }
     }
-    const Comp = {
-      mixins: [mixinA, mixinB],
+    const mixinC = defineComponent({
+      props: ['cP1', 'cP2'],
       data() {
         return {
           c: 3
         }
       },
-      created(this: any) {
+      created() {
+        calls.push('mixinC created')
+        expect(this.c).toBe(3)
+        expect(this.cP1).toBeUndefined()
+      },
+      mounted() {
+        calls.push('mixinC mounted')
+      }
+    })
+    const Comp = defineComponent({
+      props: {
+        aaa: String
+      },
+      mixins: [defineComponent(mixinA), defineComponent(mixinB), mixinC],
+      data() {
+        return {
+          z: 4
+        }
+      },
+      created() {
         calls.push('comp created')
         expect(this.a).toBe(1)
         expect(this.b).toBe(2)
+        expect(this.bP).toBeUndefined()
         expect(this.c).toBe(3)
+        expect(this.cP2).toBeUndefined()
+        expect(this.z).toBe(4)
       },
       mounted() {
         calls.push('comp mounted')
       },
-      render(this: any) {
+      render() {
         return `${this.a}${this.b}${this.c}`
       }
-    }
-
+    })
     expect(renderToString(h(Comp))).toBe(`123`)
     expect(calls).toEqual([
       'mixinA created',
       'mixinB created',
+      'mixinC created',
       'comp created',
       'mixinA mounted',
       'mixinB mounted',
+      'mixinC mounted',
       'comp mounted'
     ])
+  })
+
+  test('render from mixin', () => {
+    const Comp = {
+      mixins: [
+        {
+          render: () => 'from mixin'
+        }
+      ]
+    }
+    expect(renderToString(h(Comp))).toBe('from mixin')
   })
 
   test('extends', () => {
@@ -498,12 +549,17 @@ describe('api: options', () => {
           a: 1
         }
       },
-      mounted() {
+      methods: {
+        sayA() {}
+      },
+      mounted(this: any) {
+        expect(this.a).toBe(1)
+        expect(this.b).toBe(2)
         calls.push('base')
       }
     }
-    const Comp = {
-      extends: Base,
+    const Comp = defineComponent({
+      extends: defineComponent(Base),
       data() {
         return {
           b: 2
@@ -512,13 +568,64 @@ describe('api: options', () => {
       mounted() {
         calls.push('comp')
       },
-      render(this: any) {
+      render() {
         return `${this.a}${this.b}`
       }
-    }
+    })
 
     expect(renderToString(h(Comp))).toBe(`12`)
     expect(calls).toEqual(['base', 'comp'])
+  })
+
+  test('extends with mixins', () => {
+    const calls: string[] = []
+    const Base = {
+      data() {
+        return {
+          a: 1
+        }
+      },
+      methods: {
+        sayA() {}
+      },
+      mounted(this: any) {
+        expect(this.a).toBe(1)
+        expect(this.b).toBeTruthy()
+        expect(this.c).toBe(2)
+        calls.push('base')
+      }
+    }
+    const Base2 = {
+      data() {
+        return {
+          b: true
+        }
+      },
+      mounted(this: any) {
+        expect(this.a).toBe(1)
+        expect(this.b).toBeTruthy()
+        expect(this.c).toBe(2)
+        calls.push('base2')
+      }
+    }
+    const Comp = defineComponent({
+      extends: defineComponent(Base),
+      mixins: [defineComponent(Base2)],
+      data() {
+        return {
+          c: 2
+        }
+      },
+      mounted() {
+        calls.push('comp')
+      },
+      render() {
+        return `${this.a}${this.b}${this.c}`
+      }
+    })
+
+    expect(renderToString(h(Comp))).toBe(`1true2`)
+    expect(calls).toEqual(['base', 'base2', 'comp'])
   })
 
   test('accessing setup() state from options', async () => {
@@ -608,12 +715,13 @@ describe('api: options', () => {
   })
 
   describe('warnings', () => {
-    mockWarn()
-
     test('Expected a function as watch handler', () => {
       const Comp = {
         watch: {
-          foo: 'notExistingMethod'
+          foo: 'notExistingMethod',
+          foo2: {
+            handler: 'notExistingMethod2'
+          }
         },
         render() {}
       }
@@ -623,6 +731,9 @@ describe('api: options', () => {
 
       expect(
         'Invalid watch handler specified by key "notExistingMethod"'
+      ).toHaveBeenWarned()
+      expect(
+        'Invalid watch handler specified by key "notExistingMethod2"'
       ).toHaveBeenWarned()
     })
 

@@ -1,10 +1,7 @@
 import { reactive, effect, isReactive, toRaw } from '../../src'
-import { mockWarn } from '@vue/shared'
 
 describe('reactivity/collections', () => {
   describe('Set', () => {
-    mockWarn()
-
     it('instanceof', () => {
       const original = new Set()
       const observed = reactive(original)
@@ -412,13 +409,13 @@ describe('reactivity/collections', () => {
         `Reactive Set contains both the raw and reactive`
       ).toHaveBeenWarned()
     })
-    
+
     it('thisArg', () => {
-      const raw = new Set([ 'value' ])
+      const raw = new Set(['value'])
       const proxy = reactive(raw)
       const thisArg = {}
       let count = 0
-      proxy.forEach(function (this :{}, value, _, set) {
+      proxy.forEach(function(this: {}, value, _, set) {
         ++count
         expect(this).toBe(thisArg)
         expect(value).toBe('value')

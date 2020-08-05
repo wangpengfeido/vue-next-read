@@ -10,7 +10,6 @@ import {
   shallowReadonly,
   isProxy
 } from '../src'
-import { mockWarn } from '@vue/shared'
 
 /**
  * @see https://www.typescriptlang.org/docs/handbook/release-notes/typescript-3-4.html
@@ -18,8 +17,6 @@ import { mockWarn } from '@vue/shared'
 type Writable<T> = { -readonly [P in keyof T]: T[P] }
 
 describe('reactivity/readonly', () => {
-  mockWarn()
-
   describe('Object', () => {
     it('should make nested values readonly', () => {
       const original = { foo: 1, bar: { baz: 2 } }
@@ -214,6 +211,7 @@ describe('reactivity/readonly', () => {
           const key2 = {}
           const original = new Collection([[key1, {}], [key2, {}]])
           const wrapped: any = readonly(original)
+          expect(wrapped.size).toBe(2)
           for (const [key, value] of wrapped) {
             expect(isReadonly(key)).toBe(true)
             expect(isReadonly(value)).toBe(true)
@@ -267,6 +265,7 @@ describe('reactivity/readonly', () => {
         test('should retrieve readonly values on iteration', () => {
           const original = new Collection([{}, {}])
           const wrapped: any = readonly(original)
+          expect(wrapped.size).toBe(2)
           for (const value of wrapped) {
             expect(isReadonly(value)).toBe(true)
           }
